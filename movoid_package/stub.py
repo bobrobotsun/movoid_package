@@ -10,6 +10,9 @@ import importlib.machinery
 import importlib.util
 import inspect
 import pathlib
+import re
+import sys
+import traceback
 import typing
 from typing import List, Callable, Any, Union
 
@@ -22,11 +25,13 @@ class Stub:
         self._stub_file = None
         self._module = None
         self._members = {}
+        self._other_members = {}
         self._imports = {}
         self._from_imports = {}
         self._movoid_package = []
         self._movoid_path_import = {}
         self._stubs_strings = []
+        self._class_init_variable = {}
         self.init()
 
     def init(self):
@@ -40,9 +45,11 @@ class Stub:
         self._module = module
         self._members = {key: item for key, item in module.__dict__.items() if (not key.startswith('__') and inspect.getmodule(item) is None)}
         self._imports = {key: item for key, item in module.__dict__.items() if inspect.ismodule(item) and not hasattr(item, '__movoid_package__')}
+        self._other_members = {key: item for key, item in module.__dict__.items() if (not key.startswith('__') and inspect.getmodule(item) is not None)}
         self._from_imports = {}
         self._movoid_package = {key: getattr(item, '__movoid_package__') for key, item in module.__dict__.items() if hasattr(item, '__movoid_package__')}
         self._stubs_strings: List[str] = []
+        self._read_class_init_variable()
 
         for package_name, movoid_package in self._movoid_package.items():
             func = movoid_package[0]
@@ -112,14 +119,15 @@ class Stub:
         elif inspect.getmodule(element) == inspect.getmodule(typing):
             module_name = str(element).split('.')[0]
             if module_name not in self._imports:
-                self._imports.setdefault('')
+                self._imports.setdefault(module_name, typing)
             return str(element).replace('NoneType', 'None')
 
     def _generate_class_stub(self, class_name: str, tar_class: type) -> str:
         parent_class = [self._get_element_name_with_module(_) for _ in tar_class.__bases__]
         if tar_class.__class__ != type:
             parent_class.append('metaclass=' + self._get_element_name_with_module(tar_class.__class__))
-        retext = 'class ' + class_name.split('.')[-1] + '(' + ', '.join(parent_class) + '):\n'
+        pure_class_name = class_name.split('.')[-1]
+        retext = 'class ' + pure_class_name + '(' + ', '.join(parent_class) + '):\n'
 
         object_class = {
             'function': [],
@@ -135,12 +143,71 @@ class Stub:
             element = tar_class.__dict__[key]
             retext += '\t' + self._object_stub_string(key, element) + '\n'
         for key in object_class['function']:
+            content = '...'
+            if key == '__init__' and pure_class_name in self._class_init_variable:
+                if self._class_init_variable[pure_class_name]['super'] or self._class_init_variable[pure_class_name]['self']:
+                    content = []
+                    if self._class_init_variable[pure_class_name]['super']:
+                        content.append(self._class_init_variable[pure_class_name]['super'])
+                    if self._class_init_variable[pure_class_name]['self']:
+                        for _self_text in self._class_init_variable[pure_class_name]['self']:
+                            for _name, _class in self._other_members.items():
+                                package_name = inspect.getmodule(_class).__name__
+                                full_name = f'{package_name}.{_name}' if inspect.isclass(_class) else _name
+                                class_list = _self_text[2].split('.')
+                                try_full_class_str = '.'.join(class_list[:-1])
+                                try_single_class = class_list[0]
+                                if _self_text[2] == _name:
+                                    self._from_imports.setdefault(package_name, [])
+                                    self._from_imports[package_name].append(_name)
+                                    break
+                                elif _self_text[2] == full_name:
+                                    self._imports.setdefault(full_name, _class)
+                                    break
+                                elif try_full_class_str == _name:
+                                    self._from_imports.setdefault(package_name, [])
+                                    self._from_imports[package_name].append(_name)
+                                    break
+                                elif try_full_class_str == full_name:
+                                    self._imports.setdefault(full_name, _class)
+                                    break
+                                elif try_single_class == _name:
+                                    self._imports.setdefault(try_full_class_str, _class)
+                                    break
+                            else:
+                                try:
+                                    try_type = eval('typing.' + _self_text[2])
+                                    if inspect.getmodule(try_type) == inspect.getmodule(typing):
+                                        _self_text[2] = 'typing.' + _self_text[2]
+                                except Exception:
+                                    try:
+                                        try_type = eval(_self_text[2])
+                                        if inspect.getmodule(try_type) == inspect.getmodule(typing):
+                                            _self_text[2] = _self_text[2]
+                                    except Exception:
+                                        print(f'we do not know what is {_self_text[2]}', file=sys.stderr)
+                                        traceback.print_exc()
+
+                            content.append(f'{_self_text[1]}: {_self_text[2]} = {_self_text[3]}')
             element = tar_class.__dict__[key]
-            retext += self._function_stub_string(key, element, indentation='\t')
+            retext += self._function_stub_string(key, element, indentation='\t', content=content)
 
         retext += '\t...\n'
 
         return retext
+
+    def _read_class_init_variable(self):
+        with self._file_path.open(mode='r', encoding=self._encoding) as file:
+            file_text = file.read()
+            class_text = re.findall(r'\nclass (.*?)(\(|:)((.|\s)*?)(\n\S|$)', file_text)
+            for class_one in class_text:
+                class_name = class_one[0]
+                init_text = re.search(r'\n(\t| {4})def __init__((.|\s)*?)(\n(\t| {4})\S|$)', class_one[2]).group(2)
+                super_text = re.search(r'\n(\t| {4}){2}(super.*)', init_text).group(2)
+                self_text = [list(_) for _ in re.findall(r'\n(\t| {4}){2}(self\..*?):(.*?)=(.*)', init_text)]
+                for _i in self_text:
+                    _i[2] = _i[2].strip(' ')
+                self._class_init_variable[class_name] = {'super': super_text, 'self': self_text}
 
     def _exploit_annotation(self, anno: Any, starting: str = ': ') -> str:
         annotation_string = ''
@@ -148,7 +215,7 @@ class Stub:
             annotation_string += starting + self._get_element_name_with_module(anno)
         return annotation_string
 
-    def _function_stub_string(self, func_name: str, tar_func: Callable, indentation: str = '') -> str:
+    def _function_stub_string(self, func_name: str, tar_func: Callable, indentation: str = '', content: Union[str, List[str]] = '...') -> str:
         sign = inspect.signature(tar_func)
         re_text = f'{indentation}def {func_name}('
         for i, (par_name, parameter) in enumerate(sign.parameters.items()):
@@ -169,13 +236,18 @@ class Stub:
         ret_annotation = self._exploit_annotation(sign.return_annotation, starting=' -> ')
         re_text += f'){ret_annotation}:'
 
+        if isinstance(content, list):
+            content_text = ''.join(['\n\t' + indentation + _ for _ in content])
+        else:
+            content_text = '\t' + content
+
         if tar_func.__doc__ is not None:
             re_text += '\n' + indentation + '\t"""\n'
             for line in tar_func.__doc__.split('\n')[1:-1]:
                 re_text += indentation + '\t' + line.strip().rstrip() + '\n'
-            re_text += indentation + '\t"""\n' + indentation + '\t...\n'
+            re_text += indentation + '\t"""\n' + indentation + f'{content_text}\n'
         else:
-            re_text += '\t...\n'
+            re_text += f'{content_text}\n'
         return re_text
 
     def _object_stub_string(self, object_name: str, object_itself: Any) -> str:
