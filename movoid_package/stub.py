@@ -117,10 +117,15 @@ class Stub:
                     self._imports.setdefault(module_name, module)
                 return '{0}.{1}'.format(module_name, element.__name__)
         elif inspect.getmodule(element) == inspect.getmodule(typing):
-            module_name = str(element).split('.')[0]
+            element_str = str(element)
+            module_name = element_str.split('.')[0]
             if module_name not in self._imports:
                 self._imports.setdefault(module_name, typing)
-            return str(element).replace('NoneType', 'None')
+            element_re = re.search(r'(.*?)\[(.*)\]', element_str)
+            if element_re is not None:
+                arg_list = [self._get_element_name_with_module(_) for _ in element.__args__]
+                element_str = f'{element_re.group(1)}[{", ".join(arg_list)}]'
+            return element_str.replace('NoneType', 'None')
 
     def _generate_class_stub(self, class_name: str, tar_class: type) -> str:
         parent_class = [self._get_element_name_with_module(_) for _ in tar_class.__bases__]
