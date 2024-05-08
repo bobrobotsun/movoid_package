@@ -207,12 +207,14 @@ class Stub:
             class_text = re.findall(r'\nclass (.*?)(\(|:)((.|\s)*?)(\n\S|$)', file_text)
             for class_one in class_text:
                 class_name = class_one[0]
-                init_text = re.search(r'\n(\t| {4})def __init__((.|\s)*?)(\n(\t| {4})\S|$)', class_one[2]).group(2)
-                super_text = re.search(r'\n(\t| {4}){2}(super.*)', init_text).group(2)
-                self_text = [list(_) for _ in re.findall(r'\n(\t| {4}){2}(self\..*?):(.*?)=(.*)', init_text)]
-                for _i in self_text:
-                    _i[2] = _i[2].strip(' ')
-                self._class_init_variable[class_name] = {'super': super_text, 'self': self_text}
+                init_re = re.search(r'\n(\t| {4})def __init__((.|\s)*?)(\n(\t| {4})\S|$)', class_one[2])
+                if init_re:
+                    init_text = init_re.group(2)
+                    super_text = re.search(r'\n(\t| {4}){2}(super.*)', init_text).group(2)
+                    self_text = [list(_) for _ in re.findall(r'\n(\t| {4}){2}(self\..*?):(.*?)=(.*)', init_text)]
+                    for _i in self_text:
+                        _i[2] = _i[2].strip(' ')
+                    self._class_init_variable[class_name] = {'super': super_text, 'self': self_text}
 
     def _exploit_annotation(self, anno: Any, starting: str = ': ') -> str:
         annotation_string = ''
