@@ -7,8 +7,9 @@
 # Description   : 
 """
 
-import math
+import math as ma
 from movoid_package import importing as im, path_importing as pim
+from .temp2 import func2
 
 # tests = im('.test2')
 # func2 = im('.test2', 'func2')
