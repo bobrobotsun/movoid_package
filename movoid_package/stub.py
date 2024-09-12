@@ -18,8 +18,10 @@ from typing import List, Callable, Any, Union
 
 
 class Stub:
-    def __init__(self, file_path: str, encoding: str = 'utf8'):
-        self._file_path = pathlib.Path(file_path)
+    def __init__(self, file_path: str, package_name=None, root_dir=None, encoding: str = 'utf8'):
+        self._file_path = pathlib.Path(file_path).absolute()
+        self._package_name = 'imported'
+        self.calculate_package_name(file_path, package_name, root_dir)
         self._encoding = encoding
         self._stub_path = self._file_path.with_suffix('.pyi')
         self._stub_file = None
@@ -34,11 +36,37 @@ class Stub:
         self._class_init_variable = {}
         self.init()
 
+    def calculate_package_name(self, file_path, package_name, root_dir):
+        if root_dir is None:
+            if package_name is None:
+                package_name = 'imported'
+            else:
+                package_name = str(package_name)
+        else:
+            root_pathlib = pathlib.Path(root_dir).absolute()
+            file_pathlib = pathlib.Path(file_path).absolute()
+            root_layer = len(root_pathlib.parents)
+            file_layer = len(file_pathlib.parents)
+            package_list = []
+            if file_layer > root_layer and file_pathlib.parents[file_layer - root_layer - 1] == root_pathlib:
+                if file_pathlib.stem == '__init__':
+                    file_pathlib = file_pathlib.parent
+                for i in range(root_layer, len(file_pathlib.parents)):
+                    package_list.insert(0, file_pathlib.stem)
+                    file_pathlib = file_pathlib.parent
+                package_name = '.'.join(package_list)
+            else:
+                if package_name is None:
+                    package_name = 'imported'
+                else:
+                    package_name = str(package_name)
+        self._package_name = package_name
+
     def init(self):
         if not self._file_path.is_file():
             raise FileNotFoundError(f'{self._file_path} is not a file.')
         self._stub_file = self._stub_path.open(mode='w', encoding=self._encoding)
-        loader = importlib.machinery.SourceFileLoader('imported', str(self._file_path))
+        loader = importlib.machinery.SourceFileLoader(self._package_name, str(self._file_path))
         spec = importlib.util.spec_from_loader(loader.name, loader)
         module = importlib.util.module_from_spec(spec)
         loader.exec_module(module)
@@ -121,7 +149,7 @@ class Stub:
             module_name = element_str.split('.')[0]
             if module_name not in self._imports:
                 self._imports.setdefault(module_name, typing)
-            element_re = re.search(r'(.*?)\[(.*)\]', element_str)
+            element_re = re.search(r'(.*?)\[(.*)]', element_str)
             if element_re is not None:
                 arg_list = [self._get_element_name_with_module(_) for _ in element.__args__]
                 element_str = f'{element_re.group(1)}[{", ".join(arg_list)}]'

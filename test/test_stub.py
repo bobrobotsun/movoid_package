@@ -11,4 +11,5 @@ from movoid_package import Stub
 
 class TestStub:
     def test_stub(self):
-        stub = Stub('test/temp1.py')
+        stub = Stub('test/temp1.py', root_dir='.')
+        stub = Stub('test/__init__.py', root_dir='.')
