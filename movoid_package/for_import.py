@@ -45,17 +45,19 @@ def importing(package_name: str, object_name: Union[str, None] = None):
             raise ImportError(f'there is no {object_name} in {temp_module}')
 
 
-def path_importing(package_path: str, object_name: Union[str, None] = None):
+def path_importing(package_path: str, package_name=None, object_name: Union[str, None] = None):
     """
     if you want to import a package with a path str,you can use this instead of import
     :param package_path: target package file path should with suffix.
+    :param package_name: 如果文件有一个的路径，建议输入，可以保证相对路径的导入没有错误
     :param object_name: if import package ,this is None. if import object, this is object name
     :return: target package or object
     """
     file_path = pathlib.Path(package_path)
     if not pathlib.Path(package_path).is_file():
         raise FileNotFoundError(f'{file_path} is not a file.')
-    loader = importlib.machinery.SourceFileLoader(file_path.stem, package_path)
+    package_name = file_path.stem if package_name is None else str(package_name)
+    loader = importlib.machinery.SourceFileLoader(package_name, package_path)
     spec = importlib.util.spec_from_loader(loader.name, loader)
     temp_module = importlib.util.module_from_spec(spec)
     loader.exec_module(temp_module)
