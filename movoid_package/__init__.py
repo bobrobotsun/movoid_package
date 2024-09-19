@@ -8,3 +8,5 @@
 """
 from .for_import import importing, path_importing
 from .stub import Stub
+
+print('__init__', __name__, __file__)

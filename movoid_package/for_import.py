@@ -45,6 +45,68 @@ def importing(package_name: str, object_name: Union[str, None] = None):
             raise ImportError(f'there is no {object_name} in {temp_module}')
 
 
+def get_root_path(root_path=None) -> pathlib.Path:
+    """
+    获得root path。如果不输入，那么就根据当前文件的__name__来判断root path。如果输入，则根据输入的路径来生成root path
+    :param root_path: 不输入就按照默认生成，输入则必须是已经存在的路径或文件
+    :return: pathlib.Path
+    """
+    temp_path = None
+    if root_path is not None:
+        temp_path = pathlib.Path(root_path).absolute()
+        if not temp_path.exists():
+            temp_path = None
+    if temp_path is None:
+        temp_path = pathlib.Path(__file__).absolute()
+        if __name__ != '__main__':
+            name_list = __name__.split('.')
+            if temp_path.stem == '__init__':
+                temp_path = temp_path.parent
+            temp_path = temp_path.parents[len(name_list) - 1]
+    if temp_path.is_file():
+        re_path = temp_path.parent
+    else:
+        re_path = temp_path
+    return re_path
+
+
+def import_module(package_name: str, object_name=None):
+    """
+    使用文本的方式选择包并导入
+    :param package_name: 包名，可以任意地使用相对路径或绝对路径
+    :param object_name: 如果只想导入该包地某个对象，那就输入对象的名称。输入None就是全包导入
+    :return: 生成的包/对象返回
+    """
+    if package_name.startswith('.'):
+        root_path = get_root_path(None)
+        temp_path = pathlib.Path(__file__).absolute()
+        while package_name.startswith('.'):
+            temp_path = temp_path.parent
+            package_name = package_name[1:]
+        root_len = len(root_path.parents)
+        package_len = len(temp_path.parents)
+        if package_len == root_len:
+            if temp_path != root_path:
+                raise ImportError(f'向上追溯的路径{temp_path}和root路径{root_path}不同')
+        elif package_len > root_len:
+            if temp_path.parents[package_len - root_len - 1] == root_path:
+                folder_list = [_.stem for _ in temp_path.parents[:package_len - root_len]]
+                package_name = '.'.join([*folder_list[::-1], package_name])
+            else:
+                raise ImportError(f'向上追溯的路径{temp_path}不在root路径{root_path}下')
+        else:
+            raise ImportError(f'向上追溯的路径{temp_path}已经高于{root_path}了')
+    temp_module = importlib.import_module(package_name)
+    if object_name is None:
+        return temp_module
+    else:
+        object_name = str(object_name)
+        if hasattr(temp_module, object_name):
+            return getattr(temp_module, object_name)
+        else:
+            raise ImportError(f'{package_name}不存在对象{object_name}')
+
+
 def path_importing(package_path: str, package_name=None, object_name: Union[str, None] = None):
     """
     if you want to import a package with a path str,you can use this instead of import
@@ -71,3 +133,6 @@ def path_importing(package_path: str, package_name=None, object_name: Union[str,
             return temp_object
         else:
             raise ImportError(f'there is no {object_name} in {temp_module}')
+
+
+print(__name__)
