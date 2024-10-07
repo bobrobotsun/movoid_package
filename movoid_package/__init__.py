@@ -8,5 +8,6 @@
 """
 from .for_import import import_module, import_module_by_path, python_path
 from .stub import Stub
+from .package import Package
 
 print('__init__', __name__, __file__)

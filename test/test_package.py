@@ -6,7 +6,7 @@
 # Time          : 2024/9/17 19:50
 # Description   : 
 """
-from movoid_package import importing
+from movoid_package import import_module
 from .for_package.package1 import Package1
 from movoid_function.decorator import wraps, decorate_class_function_exclude
 from movoid_package.package import Package
@@ -24,14 +24,15 @@ def dec_package1(func):
 
 class Test_Package:
     def test_class(self):
-        a = importing('.for_package.package1')
+        a = import_module('.for_package.package1')
         temp1 = Package1()
         temp1.package_function1()
         assert temp1.count == 0
         temp1.package_function2(1, 1, 2)
         assert temp1.count == 0
 
-        Package.decorate_python('test.for_package.package1', 'Package1', decorate_class_function_exclude, [dec_package1])
+        pack = Package()
+        pack.decorate_python('test.for_package.package1', 'Package1', decorate_class_function_exclude, [dec_package1])
         temp2 = Package1()
         temp2.package_function1()
         assert temp2.count == 1

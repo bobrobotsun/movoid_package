@@ -10,7 +10,7 @@ from .for_import import _get_root_path, python_path, import_module
 
 
 class Package:
-    def __init__(self, root_path):
+    def __init__(self, root_path=None):
         self.root_path = _get_root_path(root_path)
         python_path(self.root_path)
 

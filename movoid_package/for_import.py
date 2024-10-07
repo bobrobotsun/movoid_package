@@ -7,6 +7,7 @@
 # Description   : 
 """
 import importlib
+import inspect
 import pathlib
 import sys
 from typing import Union
@@ -24,7 +25,7 @@ def _get_root_path(root_path=None) -> pathlib.Path:
         if not temp_path.exists():
             temp_path = None
     if temp_path is None:
-        temp_path = pathlib.Path(__file__).absolute().resolve()
+        temp_path = pathlib.Path(inspect.stack()[1].filename).absolute().resolve()
         if __name__ != '__main__':
             name_list = __name__.split('.')
             if temp_path.stem == '__init__':
@@ -66,10 +67,11 @@ def import_module(package_name: str, object_name: Union[str, None] = None):
     """
     if package_name.startswith('.'):
         root_path = _get_root_path(None)
-        temp_path = pathlib.Path(__file__).absolute().resolve()
+        temp_path = pathlib.Path(inspect.stack()[1].filename).absolute().resolve()
         while package_name.startswith('.'):
             temp_path = temp_path.parent
             package_name = package_name[1:]
+        print(temp_path, package_name)
         root_len = len(root_path.parents)
         package_len = len(temp_path.parents)
         if package_len == root_len:
@@ -78,7 +80,9 @@ def import_module(package_name: str, object_name: Union[str, None] = None):
         elif package_len > root_len:
             if temp_path.parents[package_len - root_len - 1] == root_path:
                 folder_list = [_.stem for _ in list(temp_path.parents)[:package_len - root_len - 1]]
-                package_name = '.'.join([*folder_list[::-1], package_name])
+                print('list', folder_list, package_name)
+                package_name = '.'.join([*folder_list[::-1], temp_path.stem, package_name])
+                print(package_name)
             else:
                 raise ImportError(f'向上追溯的路径{temp_path}不在root路径{root_path}下')
         else:
