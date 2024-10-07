@@ -6,8 +6,6 @@
 # Time          : 2024/2/28 0:01
 # Description   : 
 """
-import importlib.machinery
-import importlib.util
 import importlib
 import inspect
 import pathlib
@@ -15,57 +13,108 @@ import sys
 from typing import Union
 
 
-def importing(package_name: str, object_name: Union[str, None] = None):
+def _get_root_path(root_path=None) -> pathlib.Path:
     """
-    you can import anything by this function with normal format
-    :param package_name: relative routine to target package
-    :param object_name: if import package ,this is None. if import object, this is object name
-    :return: target package or object
+    获得root path。如果不输入，那么就根据当前文件的__name__来判断root path。如果输入，则根据输入的路径来生成root path
+    :param root_path: 不输入就按照默认生成，输入则必须是已经存在的路径或文件
+    :return: pathlib.Path
     """
-    ori_file_name = inspect.stack()[1].filename
-    file_list = package_name.split('.')
-    temp_file = pathlib.Path(ori_file_name)
-    for i in file_list[:-1]:
-        if i == '':
-            temp_file = temp_file.parent
-        else:
-            temp_file = temp_file / i
-    sys.path.insert(0, str(temp_file))
-    temp_module = importlib.import_module(file_list[-1])
-    sys.path.pop(0)
-    if object_name is None:
-        setattr(temp_module, '__movoid_package__', ['importing', [package_name], file_list[-1]])
-        return temp_module
+    temp_path = None
+    if root_path is not None:
+        temp_path = pathlib.Path(root_path).absolute().resolve()
+        if not temp_path.exists():
+            temp_path = None
+    if temp_path is None:
+        temp_path = pathlib.Path(inspect.stack()[1].filename).absolute().resolve()
+        if __name__ != '__main__':
+            name_list = __name__.split('.')
+            if temp_path.stem == '__init__':
+                temp_path = temp_path.parent
+            temp_path = temp_path.parents[len(name_list) - 1]
+    if temp_path.is_file():
+        re_path = temp_path.parent
     else:
-        if hasattr(temp_module, object_name):
-            temp_object = getattr(temp_module, object_name)
-            setattr(temp_object, '__movoid_package__', ['importing', [package_name, object_name], object_name])
-            return temp_object
-        else:
-            raise ImportError(f'there is no {object_name} in {temp_module}')
+        re_path = temp_path
+    return re_path
 
 
-def path_importing(package_path: str, object_name: Union[str, None] = None):
-    """
-    if you want to import a package with a path str,you can use this instead of import
-    :param package_path: target package file path should with suffix.
-    :param object_name: if import package ,this is None. if import object, this is object name
-    :return: target package or object
-    """
-    file_path = pathlib.Path(package_path)
-    if not pathlib.Path(package_path).is_file():
-        raise FileNotFoundError(f'{file_path} is not a file.')
-    loader = importlib.machinery.SourceFileLoader(file_path.stem, package_path)
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    temp_module = importlib.util.module_from_spec(spec)
-    loader.exec_module(temp_module)
+def _get_object_from_module(module, object_name: Union[str, None] = None, error_text: str = ''):
     if object_name is None:
-        setattr(temp_module, '__movoid_package__', ['path_importing', [package_path], file_path.stem])
-        return temp_module
+        return module
     else:
-        if hasattr(temp_module, object_name):
-            temp_object = getattr(temp_module, object_name)
-            setattr(temp_object, '__movoid_package__', ['path_importing', [package_path, object_name], object_name])
-            return temp_object
+        object_name = str(object_name)
+        if hasattr(module, object_name):
+            return getattr(module, object_name)
         else:
-            raise ImportError(f'there is no {object_name} in {temp_module}')
+            raise ImportError(f'{error_text}不存在对象{object_name}')
+
+
+def python_path(root_path):
+    root_pathlib = pathlib.Path(root_path).absolute().resolve()
+    for i in sys.path:
+        if root_pathlib == pathlib.Path(i):
+            break
+    else:
+        sys.path.insert(0, str(root_pathlib))
+
+
+def import_module(package_name: str, object_name: Union[str, None] = None):
+    """
+    使用文本的方式选择包并导入
+    :param package_name: 包名，可以任意地使用相对路径或绝对路径
+    :param object_name: 如果只想导入该包地某个对象，那就输入对象的名称。输入None就是全包导入
+    :return: 生成的包/对象返回
+    """
+    if package_name.startswith('.'):
+        root_path = _get_root_path(None)
+        temp_path = pathlib.Path(inspect.stack()[1].filename).absolute().resolve()
+        while package_name.startswith('.'):
+            temp_path = temp_path.parent
+            package_name = package_name[1:]
+        print(temp_path, package_name)
+        root_len = len(root_path.parents)
+        package_len = len(temp_path.parents)
+        if package_len == root_len:
+            if temp_path != root_path:
+                raise ImportError(f'向上追溯的路径{temp_path}和root路径{root_path}不同')
+        elif package_len > root_len:
+            if temp_path.parents[package_len - root_len - 1] == root_path:
+                folder_list = [_.stem for _ in list(temp_path.parents)[:package_len - root_len - 1]]
+                print('list', folder_list, package_name)
+                package_name = '.'.join([*folder_list[::-1], temp_path.stem, package_name])
+                print(package_name)
+            else:
+                raise ImportError(f'向上追溯的路径{temp_path}不在root路径{root_path}下')
+        else:
+            raise ImportError(f'向上追溯的路径{temp_path}已经高于root路径{root_path}了')
+    temp_module = importlib.import_module(package_name)
+    return _get_object_from_module(temp_module, object_name, package_name)
+
+
+def import_module_by_path(package_path: str, root_path=None, object_name: Union[str, None] = None):
+    """
+    通过文件名导入module，需要输入root路径，如果没有就按照当前的root路径寻找包路径。
+    :param package_path: 待导入的package的路径
+    :param root_path: root path的路径，默认用当前程序的root path
+    :param object_name: 对象名称，不输入则导入整个包
+    :return: 导入的包
+    """
+    root_path = _get_root_path(root_path)
+    package_pathlib = pathlib.Path(package_path).absolute().resolve()
+    if not (package_pathlib.exists() and package_pathlib.is_file()):
+        raise ImportError(f'{package_pathlib}不是一个有效的文件')
+    package_len = len(package_pathlib.parents)
+    root_len = len(root_path.parents)
+    if package_len > root_len:
+        if package_pathlib.parents[package_len - root_len - 1] == root_path:
+            folder_list = [_.stem for _ in list(package_pathlib.parents)[:package_len - root_len - 1]]
+            if package_pathlib.stem != '__init__':
+                folder_list.insert(0, package_pathlib.stem)
+            package_name = '.'.join(folder_list[::-1])
+        else:
+            raise ImportError(f'目标文件{package_pathlib}不在root路径{root_path}下')
+    else:
+        raise ImportError(f'目标路径{package_path}已经高于root路径{root_path}了')
+    python_path(root_path)
+    temp_module = importlib.import_module(package_name)
+    return _get_object_from_module(temp_module, object_name, str(package_pathlib))
