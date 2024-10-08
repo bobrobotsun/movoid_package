@@ -32,7 +32,7 @@ class Test_Package:
         assert temp1.count == 0
 
         pack = Package()
-        pack.decorate_python('test.for_package.package1', 'Package1', decorate_class_function_exclude, [dec_package1])
+        pack.decorate_replace('test.for_package.package1', 'Package1', decorate_class_function_exclude, [dec_package1])
         temp2 = Package1()
         temp2.package_function1()
         assert temp2.count == 1
