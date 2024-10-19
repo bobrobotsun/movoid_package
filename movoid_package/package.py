@@ -6,12 +6,12 @@
 # Time          : 2024/9/17 16:37
 # Description   : 
 """
-from .for_import import _get_root_path, python_path, import_module
+from .for_import import get_root_path, python_path, import_module
 
 
 class Package:
     def __init__(self, root_path=None):
-        self.root_path = _get_root_path(root_path, 2)
+        self.root_path = get_root_path(root_path, 2)
         python_path(self.root_path)
         self.old = {}
 

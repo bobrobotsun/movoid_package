@@ -13,7 +13,7 @@ import sys
 from typing import Union
 
 
-def _get_root_path(root_path=None, trace_index: int = 1) -> pathlib.Path:
+def get_root_path(root_path=None, trace_index: int = 1) -> pathlib.Path:
     """
     获得root path。如果不输入，那么就根据当前文件的__name__来判断root path。如果输入，则根据输入的路径来生成root path
     :param root_path: 不输入就按照默认生成，输入则必须是已经存在的路径或文件
@@ -70,7 +70,7 @@ def import_module(package_name: str, object_name: Union[str, None] = None, trace
     :return: 生成的包/对象返回
     """
     if package_name.startswith('.'):
-        root_path = _get_root_path(None, trace_index)
+        root_path = get_root_path(None, trace_index)
         temp_path = pathlib.Path(inspect.stack()[trace_index].filename).absolute().resolve()
         while package_name.startswith('.'):
             temp_path = temp_path.parent
@@ -101,7 +101,7 @@ def import_module_by_path(package_path: str, root_path=None, object_name: Union[
     :param trace_index: 如果相对路径的导入，那么往前追溯多少，一般如果是直接调用，那么1是合理的，每多嵌套一层，就建议+1
     :return: 导入的包
     """
-    root_path = _get_root_path(root_path, trace_index)
+    root_path = get_root_path(root_path, trace_index)
     package_pathlib = pathlib.Path(package_path).absolute().resolve()
     if not (package_pathlib.exists() and package_pathlib.is_file()):
         raise ImportError(f'{package_pathlib}不是一个有效的文件')
