@@ -268,12 +268,20 @@ class Stub:
             content_text = '\t' + content
 
         doc_string = []
+        no_empty_string = []
         if tar_func.__doc__ is not None:
-            for line in tar_func.__doc__.split('\n')[1:-1]:
+            print(tar_func.__doc__.strip('\n').split('\n'))
+            for line in tar_func.__doc__.strip('\n').split('\n'):
                 line_strip = line.strip()
                 if line_strip:
-                    doc_string.append(line_strip)
-        if doc_string:
+                    no_empty_string.append(line_strip)
+                doc_string.append(line_strip)
+            while len(doc_string) > 0 and not doc_string[0]:
+                doc_string.pop(0)
+            while len(doc_string) > 0 and not doc_string[-1]:
+                doc_string.pop()
+
+        if no_empty_string:
             re_text += '\n' + indentation + '\t"""\n'
             for line in doc_string:
                 re_text += indentation + '\t' + line + '\n'
