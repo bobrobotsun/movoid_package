@@ -137,9 +137,18 @@ class Stub:
                 self._imports.setdefault(module_name, typing)
             element_re = re.search(r'(.*?)\[(.*)]', element_str)
             if element_re is not None:
-                arg_list = [self._get_element_name_with_module(_) for _ in element.__args__]
-                element_str = f'{element_re.group(1)}[{", ".join(arg_list)}]'
+                if element._name == 'Callable':
+                    for _i in dir(element):
+                        _v = getattr(element, _i)
+                        print(_i, _v)
+                    arg_list = [self._get_element_name_with_module(_) for _ in element.__args__]
+                    element_str = f'{element_re.group(1)}[[{", ".join(arg_list[:-1])}], {arg_list[-1]}]'
+                else:
+                    arg_list = [self._get_element_name_with_module(_) for _ in element.__args__]
+                    element_str = f'{element_re.group(1)}[{", ".join(arg_list)}]'
             return element_str.replace('NoneType', 'None')
+        elif element is None:
+            return 'None'
 
     def _generate_class_stub(self, class_name: str, tar_class: type) -> str:
         parent_class = [self._get_element_name_with_module(_) for _ in tar_class.__bases__]
