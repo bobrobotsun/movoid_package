@@ -254,6 +254,12 @@ class Stub:
         sign = inspect.signature(tar_func)
         re_text = f'{indentation}def {func_name}('
         for i, (par_name, parameter) in enumerate(sign.parameters.items()):
+            if parameter.kind == parameter.VAR_POSITIONAL:
+                par_text = '*' + par_name
+            elif parameter.kind == parameter.VAR_KEYWORD:
+                par_text = '**' + par_name
+            else:
+                par_text = par_name
             annotation = self._exploit_annotation(parameter.annotation)
             default = ''
             if parameter.default != parameter.empty and type(parameter.default).__module__ == 'builtins' and not str(parameter.default).startswith('<'):
@@ -264,7 +270,7 @@ class Stub:
                     temp_str = str(parameter.default)
                     default = f' = {temp_str}'
 
-            re_text += par_name + annotation + default
+            re_text += par_text + annotation + default
 
             if i < len(sign.parameters) - 1:
                 re_text += ', '
