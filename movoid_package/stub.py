@@ -284,19 +284,58 @@ class Stub:
 
         doc_string = []
         no_empty_string = []
+        param_doc = {}
         if tar_func.__doc__ is not None:
             print(tar_func.__doc__.strip('\n').split('\n'))
+            now_param = None
+            param_indentation = 0
+            first_indentation = -1
             for line in tar_func.__doc__.strip('\n').split('\n'):
                 line_strip = line.strip()
+                if first_indentation >= 0:
+                    other_re = re.search(rf'^\s{{{first_indentation}}}(.*)$', line)
+                    if other_re:
+                        line_strip = other_re.group(1).rstrip()
                 if line_strip:
-                    no_empty_string.append(line_strip)
-                doc_string.append(line_strip)
+                    if first_indentation < 0:
+                        line_re = re.search(r'^(\s*?)\S', line)
+                        if line_re:
+                            first_indentation = len(line_re.group(1))
+                    param_re = re.search(r'^(\s*?):(.*?):(.*)$', line_strip)
+                    if param_re:
+                        param_indentation = len(param_re.group(1))
+                        param_key = param_re.group(2)
+                        param_value = param_re.group(3)
+                        now_param = param_key
+                        param_doc[param_key] = [param_value]
+                    else:
+                        if now_param is None:
+                            no_empty_string.append(line_strip)
+                            doc_string.append(line_strip)
+                        else:
+                            line_re2 = re.search(r'^(\s*?)(\S.*)$', line_strip)
+                            if line_re2:
+                                line_indentation = len(line_re2.group(1))
+                                more_indentation = max(0, line_indentation - param_indentation)
+                                param_doc[now_param].append(' ' * more_indentation + line_re2.group(2))
+                            else:
+                                param_doc[now_param].append(line_strip)
+                else:
+                    doc_string.append(line_strip)
             while len(doc_string) > 0 and not doc_string[0]:
                 doc_string.pop(0)
             while len(doc_string) > 0 and not doc_string[-1]:
                 doc_string.pop()
+            # 检查param信息
+            if param_doc:
+                for param_key, param_value in param_doc.items():
+                    for param_value_index, param_value_line in enumerate(param_value):
+                        if param_value_index == 0:
+                            doc_string.append(f':{param_key}:{param_value_line}')
+                        else:
+                            doc_string.append(param_value_line)
 
-        if no_empty_string:
+        if no_empty_string or param_doc:
             re_text += '\n' + indentation + '\t"""\n'
             for line in doc_string:
                 re_text += indentation + '\t' + line + '\n'
