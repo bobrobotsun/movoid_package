@@ -117,7 +117,7 @@ class Stub:
     def print(self, *args, sep=' ', end='\n'):
         print(*args, sep=sep, end=end, file=self._stub_file, flush=True)
 
-    def _get_element_name_with_module(self, element: Union[type, Any]) -> str:
+    def _get_element_name_with_module(self, element: Union[type, str, Any]) -> str:
         # The element can be a string, for example "def f() -> 'SameClass':..."
         if isinstance(element, str):
             return element
@@ -208,18 +208,22 @@ class Stub:
                                     break
                             else:
                                 try:
-                                    try_type = eval('typing.' + _self_text[2])
-                                    if inspect.getmodule(try_type) == inspect.getmodule(typing):
-                                        _self_text[2] = 'typing.' + _self_text[2]
+                                    _self_text[2] = self._get_element_name_with_module(eval(_self_text[2]))
                                     self._imports.setdefault('typing', typing)
-                                except Exception:
+                                except:
                                     try:
-                                        try_type = eval(_self_text[2])
+                                        try_type = eval('typing.' + _self_text[2])
                                         if inspect.getmodule(try_type) == inspect.getmodule(typing):
-                                            _self_text[2] = _self_text[2]
+                                            _self_text[2] = 'typing.' + _self_text[2]
+                                        self._imports.setdefault('typing', typing)
                                     except Exception:
-                                        print(f'we do not know what is {_self_text[2]}', file=sys.stderr)
-                                        traceback.print_exc()
+                                        try:
+                                            try_type = eval(_self_text[2])
+                                            if inspect.getmodule(try_type) == inspect.getmodule(typing):
+                                                _self_text[2] = _self_text[2]
+                                        except Exception:
+                                            print(f'we do not know what is {_self_text[2]}', file=sys.stderr)
+                                            traceback.print_exc()
 
                             content.append(f'{_self_text[1]}: {_self_text[2]} = {_self_text[3]}')
             element = tar_class.__dict__[key]
