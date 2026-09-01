@@ -199,7 +199,7 @@ class Stub:
                                 elif try_full_class_str == full_name:
                                     self._imports.setdefault(full_name, _class)
                                     break
-                                elif try_single_class == _name:
+                                elif try_single_class == _name and '[' not in _self_text[2]:
                                     temp_class = _class
                                     for attrs in class_list[1:-1]:
                                         if hasattr(temp_class, attrs):
